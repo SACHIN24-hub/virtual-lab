@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Carey Foster’s Bridge — VR Mini Project</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- A-Frame -->
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <style>
+    body { margin: 0; font-family: system-ui, Arial, sans-serif; }
+    .ui {
+      position: absolute; top: 16px; left: 16px; z-index: 10;
+      background: rgba(20,20,24,0.85); color: #fff; padding: 12px 14px; border-radius: 10px;
+      width: 300px;
+    }
+    .ui h2 { margin: 0 0 8px; font-size: 16px; }
+    .row { display: flex; gap: 8px; margin-top: 8px; }
+    .ui label { font-size: 12px; display: block; margin-top: 6px; }
+    .ui input, .ui select { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #444; background: #0f0f12; color: #fff; }
+    .ui button { margin-top: 10px; padding: 8px 10px; border-radius: 6px; border: none; background: #4caf50; color: #fff; cursor: pointer; width: 100%; }
+    .tip { font-size: 12px; opacity: 0.8; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <!-- Input UI -->
+  <div class="ui">
+    <h2>Carey Foster’s Bridge Inputs</h2>
+
+    <label>Known resistance Rk (Ω):</label>
+    <input id="rk" type="number" step="0.0001" placeholder="e.g., 0.5" />
+
+    <label>Unknown swapped end (choose):</label>
+    <select id="unknownSide">
+      <option value="left">Rx near left end in first setup</option>
+      <option value="right">Rx near right end in first setup</option>
+    </select>
+
+    <div class="row">
+      <div style="flex:1">
+        <label>Balance length l1 (cm):</label>
+        <input id="l1" type="number" step="0.01" placeholder="e.g., 43.25" />
+      </div>
+      <div style="flex:1">
+        <label>Balance length l2 (cm):</label>
+        <input id="l2" type="number" step="0.01" placeholder="e.g., 41.80" />
+      </div>
+    </div>
+
+    <div class="row">
+      <div style="flex:1">
+        <label>Slide wire length L (cm):</label>
+        <input id="L" type="number" step="0.01" placeholder="e.g., 100.00" />
+      </div>
+      <div style="flex:1">
+        <label>Wire resistance per unit r (Ω/cm):</label>
+        <input id="r" type="number" step="0.000001" placeholder="e.g., 0.00012" />
+      </div>
+    </div>
+
+    <button id="calcBtn">Compute Rx</button>
+    <div class="tip">Enter VR to view the apparatus. The computed result appears on the VR readout.</div>
+  </div>
+
+  <!-- VR Scene -->
+  <a-scene background="color: #E9EDF2">
+    <!-- Camera with cursor -->
+    <a-entity position="0 1.6 0">
+      <a-camera>
+        <a-cursor fuse="true" fuse-timeout="600" material="color: black; shader: flat"></a-cursor>
+      </a-camera>
+    </a-entity>
+
+    <!-- Lights -->
+    <a-entity light="type: ambient; intensity: 0.6"></a-entity>
+    <a-entity light="type: directional; intensity: 0.9" position="1 3 2"></a-entity>
+
+    <!-- Lab table -->
+    <a-box position="0 0 -3" depth="1" height="0.2" width="4" color="#8D6E63" shadow></a-box>
+
+    <!-- Carey Foster bridge base rail (slide wire) -->
+    <a-box position="0 0.25 -3" depth="0.2" height="0.05" width="3.6" color="#607D8B"></a-box>
+
+    <!-- Scale marks along slide wire -->
+    <a-entity id="scaleMarks"></a-entity>
+
+    <!-- Left end blocks (P,Q arms, terminals) -->
+    <a-box position="-1.7 0.35 -3" depth="0.3" height="0.2" width="0.4" color="#455A64"></a-box>
+    <a-box position=" 1.7 0.35 -3" depth="0.3" height="0.2" width="0.4" color="#455A64"></a-box>
+
+    <!-- Known resistor Rk and unknown Rx holders -->
+    <a-cylinder position="-1.2 0.45 -3" radius="0.05" height="0.3" color="#B0BEC5"></a-cylinder>
+    <a-cylinder position=" 1.2 0.45 -3" radius="0.05" height="0.3" color="#B0BEC5"></a-cylinder>
+    <a-text value="Rk" color="#222" position="-1.2 0.7 -2.9" align="center" width="2"></a-text>
+    <a-text value="Rx" color="#222" position=" 1.2 0.7 -2.9" align="center" width="2"></a-text>
+
+    <!-- Galvanometer and key -->
+    <a-box position="0 0.45 -2.4" width="0.6" height="0.25" depth="0.4" color="#9FA8DA"></a-box>
+    <a-text value="Galvanometer" color="#222" position="0 0.75 -2.4" align="center" width="2.5"></a-text>
+
+    <!-- Battery -->
+    <a-cylinder position="0.9 0.45 -2.6" radius="0.06" height="0.3" color="#607D8B"></a-cylinder>
+    <a-text value="Battery" color="#222" position="0.9 0.75 -2.6" align="center" width="2"></a-text>
+
+    <!-- Sliding jockey pointer -->
+    <a-cylinder id="jockey" position="0 0.35 -3" radius="0.025" height="0.25" color="#D32F2F"></a-cylinder>
+    <a-text value="Jockey" color="#222" position="0 0.7 -3" align="center" width="2"></a-text>
+
+    <!-- Readout screen for result -->
+    <a-entity id="screen" position="0 1.5 -2.2">
+      <a-plane color="#222" width="2.6" height="1.1" opacity="0.95"></a-plane>
+      <a-entity id="outputText" position="0 0 0.01"
+        text="value: Enter values and press Compute Rx; align: center; width: 3; color: #fff;"></a-entity>
+    </a-entity>
+
+    <!-- Notes on procedure inside VR -->
+    <a-entity position="0 0.95 -2.2"
+      text="value: Measure balance points l1 and l2 with Rx swapped ends; align: center; width: 3; color: #ddd;">
+    </a-entity>
+  </a-scene>
+
+  <script>
+    // Draw simple scale marks along the slide wire for visual realism
+    const scale = document.getElementById('scaleMarks');
+    for (let i = -18; i <= 18; i++) {
+      const mark = document.createElement('a-box');
+      mark.setAttribute('position', `${i*0.1} 0.28 -3`);
+      mark.setAttribute('width', '0.01');
+      mark.setAttribute('height', i % 5 === 0 ? '0.06' : '0.03');
+      mark.setAttribute('depth', '0.02');
+      mark.setAttribute('color', '#37474F');
+      scale.appendChild(mark);
+    }
+
+    const rkEl = document.getElementById('rk');
+    const sideEl = document.getElementById('unknownSide');
+    const l1El = document.getElementById('l1');
+    const l2El = document.getElementById('l2');
+    const LEl  = document.getElementById('L');
+    const rEl  = document.getElementById('r');
+    const out  = document.getElementById('outputText');
+    const jockey = document.getElementById('jockey');
+
+    function setOutput(msg, color = '#ffffff') {
+      out.setAttribute('text', `value: ${msg}; align: center; width: 3; color: ${color};`);
+    }
+
+    function moveJockeyToBalance(lcm) {
+      // lcm in cm, slide wire total ~ 36 units mapped to 3.6m here => 0.1m per cm mark
+      // Map 0..L to -1.8..+1.8
+      const L = parseFloat(LEl.value);
+      if (!isFinite(L) || L <= 0) return;
+      const x = (lcm / L) * 3.6 - 1.8; // meters along our virtual rail
+      jockey.setAttribute('position', `${x.toFixed(3)} 0.35 -3`);
+    }
+
+    document.getElementById('calcBtn').addEventListener('click', () => {
+      const rk = parseFloat(rkEl.value);
+      const l1 = parseFloat(l1El.value);
+      const l2 = parseFloat(l2El.value);
+      const L  = parseFloat(LEl.value);
+      const r  = parseFloat(rEl.value);
+      const unknownSide = sideEl.value;
+
+      if (![rk, l1, l2, L, r].every(v => isFinite(v))) {
+        setOutput('Please enter all values correctly.', '#ffcc00');
+        return;
+      }
+      if (L <= 0 || r <= 0 || rk <= 0) {
+        setOutput('Rk, L, and r must be positive.', '#ffcc00');
+        return;
+      }
+
+      // Carey Foster’s Bridge relation:
+      // Rx - Rk = (l1 - l2) * r   (when Rx and Rk are swapped at ends of the slide wire)
+      // If orientation is reversed, sign flips. We handle orientation via unknownSide.
+      const deltaL = l1 - l2; // in cm
+      const correction = deltaL * r; // Ω
+
+      let Rx;
+      if (unknownSide === 'left') {
+        Rx = rk + correction; // Rx near left in first setup
+      } else {
+        Rx = rk - correction; // Rx near right in first setup
+      }
+
+      // Move jockey to the first balance point for visualization
+      moveJockeyToBalance(l1);
+
+      const msg = `Computed Rx = ${Rx.toFixed(6)} Ω
+Δl = ${(deltaL).toFixed(3)} cm, wire r = ${r.toExponential(3)} Ω/cm`;
+      setOutput(msg, '#a5ffae');
+    });
+  </script>
+</body>
+</html>
+
